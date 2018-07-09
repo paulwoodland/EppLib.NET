@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using EppLib.Extensions.Nominet.DomainCheck;
+using EppLib.Extensions.Nominet.Notifications;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using EppLib.Entities;
@@ -594,6 +595,54 @@ namespace EppLib.Tests
             Assert.Inconclusive("Not implemented");
         }
 
+        /// <summary>
+        /// Contact Update command, This is the Nominet specific example from their documentation for privacy off
+        /// NOTE: minor change to example XML, contact:disclose moved before contact:authinfo
+        /// Disclose is set
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalCommand")]
+        [DeploymentItem("TestData/ContactUpdateCommandNominetPrivacyOff.xml")]
+        public void TestContactUpdateCommandNominetPrivacyOff()
+        {
+            string expected = File.ReadAllText("ContactUpdateCommandNominetPrivacyOff.xml");//set a new file
+
+            ContactChange contactChange = new ContactChange();
+            contactChange.DiscloseFlag = true;
+            contactChange.DiscloseMask = Contact.DiscloseFlags.OrganizationInt | Contact.DiscloseFlags.AddressInt;
+
+            var command = new ContactUpdate("CONTACT-1234");
+            command.ContactChange = contactChange;
+
+            command.TransactionId = "ABC-12345";
+            command.Password = "2fooBAR";
+            Assert.AreEqual(expected, command.ToXml().InnerXml);
+        }
+
+        /// <summary>
+        /// Contact Update command, This is the Nominet specific example from their documentation for privacy on
+        /// NOTE: minor change to example XML, contact:disclose moved before contact:authinfo
+        /// Disclose is not set
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalCommand")]
+        [DeploymentItem("TestData/ContactUpdateCommandNominetPrivacyOn.xml")]
+        public void TestContactUpdateCommandNominetPrivacyOn()
+        {
+            string expected = File.ReadAllText("ContactUpdateCommandNominetPrivacyOn.xml");//set a new file
+
+            ContactChange contactChange = new ContactChange();
+            contactChange.DiscloseFlag = false;
+            contactChange.DiscloseMask = ~Contact.DiscloseFlags.OrganizationInt & ~Contact.DiscloseFlags.AddressInt;
+
+            var command = new ContactUpdate("CONTACT-1234");
+            command.ContactChange = contactChange;
+
+            command.TransactionId = "ABC-12345";
+            command.Password = "2fooBAR";
+            Assert.AreEqual(expected, command.ToXml().InnerXml);
+        }
+
         #endregion
 
         #region Contact Create
@@ -601,6 +650,7 @@ namespace EppLib.Tests
         /// <summary>
         /// Contact create command, example RFC5733
         /// NOTE: minor change to example XML, contact:disclose moved before contact:authinfo
+        /// Disclose is not set
         /// </summary>
         [TestMethod]
         [TestCategory("LocalCommand")]
@@ -615,7 +665,7 @@ namespace EppLib.Tests
                     new Telephone("+1.7035555556", null));
             contact.PostalInfo.m_type = PostalAddressType.INT;
             contact.DiscloseFlag = false;
-            contact.DiscloseMask = Contact.DiscloseFlags.All & ~Contact.DiscloseFlags.Email & ~Contact.DiscloseFlags.Voice;
+            contact.DiscloseMask = ~Contact.DiscloseFlags.Voice & ~Contact.DiscloseFlags.Email;
 
             var command = new ContactCreate(contact);
             command.TransactionId = "ABC-12345";
@@ -625,26 +675,57 @@ namespace EppLib.Tests
         }
 
         /// <summary>
-        /// Contact create response, example RFC5733
+        /// Contact create command, This is the Nominet specific example from their documentation for privacy on
+        /// NOTE: minor change to example XML, contact:disclose moved before contact:authinfo
+        /// Disclose is set to false
         /// </summary>
         [TestMethod]
-        [TestCategory("LocalResponse")]
-        [DeploymentItem("TestData/ContactCreateResponse1.xml")]
-        public void TestContactCreateResponse1()
+        [TestCategory("LocalCommand")]
+        [DeploymentItem("TestData/ContactCreateCommandNominetPrivacyOn.xml")]
+        public void TestContactCreateNominetPrivacyOn()
         {
-            byte[] input = File.ReadAllBytes("ContactCreateResponse1.xml");
-            var response = new ContactCreateResponse(input);
+            string expected = File.ReadAllText("ContactCreateCommandNominetPrivacyOn.xml");
 
-            Assert.AreEqual("1000", response.Code);
-            Assert.AreEqual("Command completed successfully", response.Message);
+            Contact contact = new Contact("sh8013", "John Doe", "Example Inc.",
+                    "Dulles", "123 Example Dr.", "Suite 100", null, "VA", "20166-6503", "US",
+                    "jdoe@example.com", new Telephone("+1.7035555555", "1234"),
+                    new Telephone("+1.7035555556", null));
+            contact.PostalInfo.m_type = PostalAddressType.INT;
+            contact.DiscloseFlag = false;
+            contact.DiscloseMask = ~Contact.DiscloseFlags.OrganizationInt & ~Contact.DiscloseFlags.AddressInt;
 
-            Assert.AreEqual("sh8013", response.ContactId);
-            Assert.AreEqual("1999-04-03T22:00:00.0Z", response.DateCreated);
-
-            Assert.AreEqual("ABC-12345", response.ClientTransactionId);
-            Assert.AreEqual("54321-XYZ", response.ServerTransactionId);
+            var command = new ContactCreate(contact);
+            command.TransactionId = "ABC-12345";
+            command.Password = "2fooBAR";
+            Assert.AreEqual(expected, command.ToXml().InnerXml);
         }
 
+        /// <summary>
+        /// Contact create command, This is the Nominet specific example from their documentation for privacy off
+        /// NOTE: that Nominet except no disclose section at all for privacy off (i.e. not disclose = 1, thats not accepted)
+        /// Disclose is set to true
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalCommand")]
+        [DeploymentItem("TestData/ContactCreateCommandNominetPrivacyOff.xml")]
+        public void TestContactCreateNominetPrivacyOff()
+        {
+            string expected = File.ReadAllText("ContactCreateCommandNominetPrivacyOff.xml");
+
+            Contact contact = new Contact("sh8013", "John Doe", "Example Inc.",
+                    "Dulles", "123 Example Dr.", "Suite 100", null, "VA", "20166-6503", "US",
+                    "jdoe@example.com", new Telephone("+1.7035555555", "1234"),
+                    new Telephone("+1.7035555556", null));
+            contact.PostalInfo.m_type = PostalAddressType.INT;
+
+            //Don't include a disclosure section at all
+            contact.DiscloseFlag = null;
+
+            var command = new ContactCreate(contact);
+            command.TransactionId = "ABC-12345";
+            command.Password = "2fooBAR";
+            Assert.AreEqual(expected, command.ToXml().InnerXml);
+        }
         #endregion
 
         #region TODO? Contact Transfer Query
@@ -827,7 +908,44 @@ namespace EppLib.Tests
             Assert.AreEqual("ABC-12345", response.ClientTransactionId);
             Assert.AreEqual("54322-XYZ", response.ServerTransactionId);
         }
+        
+        #endregion
 
+        #region Domain Release
+
+        /// <summary>
+        /// Domain release command, example RFC5731
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalCommand")]
+        [DeploymentItem("TestData/DomainReleaseCommand1.xml")]
+        public void TestDomainReleaseCommand1()
+        {
+            string expected = File.ReadAllText("DomainReleaseCommand1.xml");
+
+            var command = new DomainRelease("epp-example.co.uk", "EXAMPLE-TAG");
+            command.TransactionId = "ABC-12345";
+            
+            Assert.AreEqual(expected, command.ToXml().InnerXml);
+        }
+
+        /// <summary>
+        /// Domain check response, example RFC5733
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalResponse")]
+        [DeploymentItem("TestData/DomainReleaseResponse1.xml")]
+        public void TestDomainReleaseResponse1()
+        {
+            byte[] input = File.ReadAllBytes("DomainReleaseResponse1.xml");
+            var response = new DomainReleaseResponse(input);
+
+            Assert.AreEqual("1001", response.Code);
+            Assert.AreEqual("Command completed successfully; action pending", response.Message);
+
+            Assert.AreEqual("ABC-12345", response.ClientTransactionId);
+            Assert.AreEqual("54322-XYZ", response.ServerTransactionId);
+        }
 
 
         #endregion
@@ -946,7 +1064,11 @@ namespace EppLib.Tests
         [DeploymentItem("TestData/DomainRenewCommand1.xml")]
         public void TestDomainRenewCommand1()
         {
-            Assert.Inconclusive("Not implemented");
+            string expected = File.ReadAllText("DomainRenewCommand1.xml");
+
+            var command = new DomainRenew("example.com", new DateTime(2000, 4, 3).ToString("yyyy-MM-dd"), new DomainPeriod(5, "y"));
+            command.TransactionId = "ABC-12345";
+            Assert.AreEqual(expected, command.ToXml().InnerXml);
         }
 
         /// <summary>
@@ -1014,5 +1136,102 @@ namespace EppLib.Tests
 
         #endregion
 
+        #region Poll
+
+        /// <summary>
+        /// Poll request command
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalCommand")]
+        [DeploymentItem("TestData/PollRequestCommand1.xml")]
+        public void TestPollReqCommand1()
+        {
+            string expected = File.ReadAllText("PollRequestCommand1.xml");
+
+            var command = new Poll { Type = "req" };
+            command.TransactionId = "ABC-12345";
+
+            Assert.AreEqual(expected, command.ToXml().InnerXml);
+        }
+
+        /// <summary>
+        /// Poll acknowledge command
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalCommand")]
+        [DeploymentItem("TestData/PollAckCommand1.xml")]
+        public void TestPollAckCommand1()
+        {
+            string expected = File.ReadAllText("PollAckCommand1.xml");
+
+            var command = new Poll { MessageId = "12345", Type = "ack" };
+            command.TransactionId = "ABC-12345";
+
+            Assert.AreEqual(expected, command.ToXml().InnerXml);
+        }
+
+        /// <summary>
+        /// Poll response, no messages
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalResponse")]
+        [DeploymentItem("TestData/PollNoMsgsResponse1.xml")]
+        public void TestPollNoMsgsResponse1()
+        {
+            byte[] input = File.ReadAllBytes("PollNoMsgsResponse1.xml");
+            var response = new PollResponse(input);
+
+            Assert.AreEqual("1300", response.Code);
+            Assert.AreEqual("Command completed successfully; no messages", response.Message);
+
+            Assert.AreEqual("ABC-12345", response.ClientTransactionId);
+            Assert.AreEqual("54322-XYZ", response.ServerTransactionId);
+        }
+
+        /// <summary>
+        /// Poll response, Contact deleted notification messages
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalResponse")]
+        [DeploymentItem("TestData/PollMsgsResponse1.xml")]
+        public void TestPollMsgsResponse1()
+        {
+            byte[] input = File.ReadAllBytes("PollMsgsResponse1.xml");
+            var response = new PollResponse(input);
+
+            Assert.AreEqual("1301", response.Code);
+            Assert.AreEqual("Command completed successfully; ack to dequeue", response.Message);
+
+            Assert.AreEqual("Contact deleted notification", response.Body);
+
+            Assert.AreEqual("ABC-12345", response.ClientTransactionId);
+            Assert.AreEqual("54322-XYZ", response.ServerTransactionId);
+        }
+        
+        /// <summary>
+        /// Poll response, Contact deleted notification messages
+        /// </summary>
+        [TestMethod]
+        [TestCategory("LocalResponse")]
+        [DeploymentItem("TestData/PollMsgsResponse2.xml")]
+        public void TestPollMsgsResponse2()
+        {
+            byte[] input = File.ReadAllBytes("PollMsgsResponse2.xml");
+            var response = new PollResponse(input);
+
+            Assert.AreEqual("1301", response.Code);
+            Assert.AreEqual("Command completed successfully; ack to dequeue", response.Message);
+
+            Assert.AreEqual("Domains Released Notification", response.Body);
+
+            Assert.AreEqual("ABC-12345", response.ClientTransactionId);
+            Assert.AreEqual("54322-XYZ", response.ServerTransactionId);
+
+            var notification = new DomainsReleasedNotification(File.ReadAllText("PollMsgsResponse2.xml"));
+
+            Assert.IsNotNull(notification.DomainsReleased);
+        }
+
+        #endregion
     }
 }
